@@ -1,0 +1,203 @@
+#!/usr/bin/python
+
+import os
+import sys
+import random
+import math
+from os import listdir
+from os.path import abspath
+from os.path import splitext
+from os.path import walk
+from commands import getoutput
+import subprocess
+
+playdir = "/media/toons/Level"
+
+DifficultyLevel = { 0:1, 1:7, 2:8, 3:8, 4:9, 5:9, 6:10 }
+
+Padding = "                        "
+
+Bounds = {
+          1:{ "+":{ "Lower": [1,1],  "Upper":[3,3]   }},
+          2:{ "+":{ "Lower": [1,1],  "Upper":[5,3]   }},
+          3:{ "+":{ "Lower": [1,3],  "Upper":[9,6]   }},
+          4:{ "+":{ "Lower": [1,6],  "Upper":[9,12]  }},
+          5:{ "+":{ "Lower": [1,6],  "Upper":[9,12]  }, "-":{ "Lower": [3,1],  "Upper":[9,4]  } },
+          6:{ "+":{ "Lower": [6,0],  "Upper":[9,10]  }, "-":{ "Lower": [3,0],  "Upper":[12,4] } },
+          7:{ "+":{ "Lower": [6,0],  "Upper":[9,10]  }, "-":{ "Lower": [3,0],  "Upper":[12,4] } },
+      
+          8:{ "+":{ "Lower": [0,10], "Upper":[10,20] }, "-":{ "Lower": [0,10], "Upper":[12,15] }, 
+              "*":{ "Lower": [0,0],  "Upper":[5,5]   }                                          },
+          
+          9:{ "+":{ "Lower": [0,0], "Upper":[50,50] },   "-":{ "Lower": [0,0], "Upper":[50,50] }, 
+              "*":{ "Lower": [0,0], "Upper":[10,10]   }, "/":{ "Lower": [1,1],  "Upper":[10,10]    } },
+
+          10:{ "+":{ "Lower": [0,0],  "Upper":[100,100] }, "-":{ "Lower": [0,0], "Upper":[100,100] }, 
+               "*":{ "Lower": [0,0],  "Upper":[11,11]   }, "/":{ "Lower": [1,1],  "Upper":[16,16]    } },
+
+          11:{ "+":{ "Lower": [0,0],  "Upper":[1000,1000] }, "-":{ "Lower": [0,0], "Upper":[500,500] }, 
+               "*":{ "Lower": [0,0],  "Upper":[15,15]   }, "/":{ "Lower": [1,1],  "Upper":[100,100]    } }
+
+         }
+         
+Settings = {
+            1: { "Operators":"+",    "System":"N",     "Bounds":Bounds[1],  "InARow":1, "Repetition":1, "WhupsFactor": 1.0/5.0 },
+            2: { "Operators":"+",    "System":"N",     "Bounds":Bounds[2],  "InARow":1, "Repetition":1, "WhupsFactor": 1.0/5.0 },
+            3: { "Operators":"+",    "System":"N",     "Bounds":Bounds[3],  "InARow":1, "Repetition":1, "WhupsFactor": 1.0/5.0 },
+            4: { "Operators":"+",    "System":"N",     "Bounds":Bounds[4],  "InARow":1, "Repetition":1, "WhupsFactor": 1.0/5.0 },
+            5: { "Operators":"+-",   "System":"N",     "Bounds":Bounds[5],  "InARow":2, "Repetition":1, "WhupsFactor": 1.0/5.0 },
+            6: { "Operators":"+-",   "System":"Z\\Z-", "Bounds":Bounds[6],  "InARow":2, "Repetition":2, "WhupsFactor": 1.0/6.0 },
+            7: { "Operators":"+-",   "System":"Z\\Z-", "Bounds":Bounds[7],  "InARow":3, "Repetition":2, "WhupsFactor": 1.0/6.0 },
+            8: { "Operators":"+-*",  "System":"Z\\Z-", "Bounds":Bounds[8],  "InARow":3, "Repetition":2, "WhupsFactor": 1.0/7.0 },
+            9: { "Operators":"+-*/", "System":"Z",     "Bounds":Bounds[9],  "InARow":3, "Repetition":3, "WhupsFactor": 1.0/7.0 },
+            10:{ "Operators":"+-*/", "System":"Z",     "Bounds":Bounds[10], "InARow":4, "Repetition":3, "WhupsFactor": 1.0/8.0 },
+            11:{ "Operators":"+-*/", "System":"Z",     "Bounds":Bounds[11], "InARow":4, "Repetition":3, "WhupsFactor": 1.0/8.0 }
+           }
+
+Reward = {  4:100, 5:360, 6:1000 }
+
+def mine(filebin,dirname,fnames):
+    for f in fnames:
+            filebin.append(abspath(dirname)+"/"+f)  
+
+def factors(n):    
+    result = set()
+    for i in range(1, int(n ** 0.5) + 1):
+        div, mod = divmod(n, i)
+        if mod == 0:
+            result |= {i, div}
+    return result
+
+def Win(Level):
+    print Padding+"WIN!"
+    if(Level>4):
+        Credit(Level)
+    else:
+        PlayCartoon(Level)
+
+
+def Credit(Level):
+    print "-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-"	
+    command = "./.guardian/update.py " + str(Reward[Level])
+    subprocess.call(command,shell=True)
+    subprocess.call("balance",shell=True)
+
+def PlayCartoon(Level):
+    filebin = []
+
+    walk(playdir+str(Level)+"/",mine,filebin)
+
+    #for f in filebin: print f 
+    #print " "
+    filetoplay = random.choice(filebin) 
+    print "Playing "+filetoplay+"..."
+
+    cmd = "omxplayer "+filetoplay
+
+    outz = getoutput(cmd)
+
+def Operator(Difficulty):
+    ops = Settings[Difficulty]["Operators"]
+    return ops[random.randint(0,len(ops)-1)]
+
+def Answer(op,a,b):
+    if(op=="+"):
+        return a+b
+    if(op=="-"):
+        return a-b
+    if(op=="*"):
+        return a*b
+    if(op=="/"):
+        return a/b
+
+def FirstNumber(Difficulty,op):
+    a = random.randint(Settings[Difficulty]["Bounds"][op]["Lower"][0],Settings[Difficulty]["Bounds"][op]["Upper"][0])
+
+    if(Settings[Difficulty]["System"]=="N" and a<=1):
+        a = 2 if op=="-" else 1
+
+    return a
+
+def SecondNumber(Difficulty,op,first):
+    b = random.randint(Settings[Difficulty]["Bounds"][op]["Lower"][1],Settings[Difficulty]["Bounds"][op]["Upper"][1])
+
+    if(op=="-" and Settings[Difficulty]["System"]=="N"):    
+        b = random.randint(1,first-1)
+    elif(op=="-" and Settings[Difficulty]["System"]=="Z\\Z-"):    
+        b = random.randint(1,first)
+    elif(op=="/"):
+        b = random.sample( factors(first), 1)[0]
+
+    return 1 if Settings[Difficulty]["System"]=="N" and b<1 else b
+
+def DoProblem(Difficulty):
+    op = Operator(Difficulty)
+    
+    a = FirstNumber(Difficulty,op)
+    b = SecondNumber(Difficulty,op,a)
+    c = Answer(op,a,b)
+
+    lena = len(str(a))
+    lenb = len(str(b))
+    lenc = len(str(c))
+    lenmax = max(lena,lenb,lenc) 
+
+    APad = " " if lena>=lenmax else " "*(1+lenmax-lena)
+    BPad = " " if lenb>=lenmax else " "*(1+lenmax-lenb)
+    CPad = " " if lenc>=lenmax else " "*(1+lenmax-lenc)
+
+    print Padding + " "  + APad+str(a)
+    print Padding + op   + BPad+str(b)
+    print Padding + "--" + "-"*(lenmax)
+
+    ans = input(Padding+" "+CPad)
+
+    return c==ans
+
+def InnerAttempt(Difficulty):
+    done = False
+    inner_count = 0 
+
+    while(not done):
+   
+        if(not done): print "    You need to get " + str(Settings[Difficulty]["InARow"]-inner_count) + " more in a row for this set.\n\n"
+        
+        if(DoProblem(Difficulty)):
+            print Padding+"YEP!\n\n"
+            inner_count+=1
+        else:
+            break
+
+        done = inner_count==Settings[Difficulty]["InARow"]
+
+    return done
+
+
+def Main():
+    
+    lev = input(Padding+"Choose Level: ");
+    Difficulty = DifficultyLevel[lev]
+
+    done = False
+    outer_count = 0 
+
+    while(not done):
+ 
+        plural = "s" if Settings[Difficulty]["Repetition"]-outer_count > 1 else ""  
+
+        if(not done): print "\n Only " + str(Settings[Difficulty]["Repetition"]-outer_count) + " more set"+plural+" to go!\n"
+
+        if(InnerAttempt(Difficulty)):
+            print Padding+"GOOD JOB!\n"
+            outer_count+=1
+        else:
+            print Padding+"NOPE! KEEP GOING!\n\n"
+
+        done = outer_count==Settings[Difficulty]["Repetition"]
+
+    if(random.random() >= Settings[Difficulty]["WhupsFactor"]):
+        Win(lev)
+    else:
+        print Padding+"WHUPS! SORRY, TRY AGAIN."
+
+Main()
